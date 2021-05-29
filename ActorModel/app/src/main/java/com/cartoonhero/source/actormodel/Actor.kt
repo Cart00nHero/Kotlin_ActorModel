@@ -1,13 +1,16 @@
 package com.cartoonhero.source.actormodel
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.actor
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.*
+import kotlin.coroutines.EmptyCoroutineContext
 
 @ObsoleteCoroutinesApi
 @ExperimentalCoroutinesApi
 abstract class Actor {
 
+    private interface Message
     private val mSystem = ActorSystem()
     private val scope = CoroutineScope(Dispatchers.Default + Job())
     private data class ActorMessage(
@@ -41,5 +44,23 @@ abstract class Actor {
     }
     fun cancel() {
         if (scope.isActive) scope.cancel()
+    }
+
+    @ExperimentalCoroutinesApi
+    private inner class ActorSystem {
+        private val scope: CoroutineScope =
+            CoroutineScope(EmptyCoroutineContext + SupervisorJob())
+        private val channel: Channel<Message> = Channel(100)
+//    private val channel: BroadcastChannel<Message> = BroadcastChannel(100)
+
+        fun send(event: Message) {
+            scope.launch {
+                channel.send(event)
+            }
+        }
+
+        val mailbox: Flow<Message>
+            get() = flow { emitAll(channel.receiveAsFlow()) }
+//        get() = flow { emitAll(channel.openSubscription()) }
     }
 }
